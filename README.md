@@ -9,7 +9,7 @@ This template holds your project notebook (`MSC_final_project.ipynb`). You build
 3. Set **Owner** to your account, name it e.g. `msc-project-yoursurname`, choose **Private**, and click **Create repository**.
 4. **Add your supervisor as a collaborator:** **Settings → Collaborators → Add people**. Your supervisor cannot review your work without this access.
 
-## 2. Install the tools (once)
+## 2. Install the tools (once)  =
 
 **Anaconda (Python and Jupyter)**
 Download and install from <https://www.anaconda.com/download>. Use the default options.
