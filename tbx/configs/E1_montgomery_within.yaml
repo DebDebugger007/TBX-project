@@ -1,0 +1,8 @@
+# E1 — ResNet-18 within Montgomery, whole image, 5-fold. RQ1 / RQ5, Phase 4.
+name: E1_montgomery_within
+description: ImageNet-pretrained ResNet-18, whole image, stratified 5-fold on MC.
+train: montgomery
+test: montgomery
+region: whole
+model: resnet18
+eval_mode: within

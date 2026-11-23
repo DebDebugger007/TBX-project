@@ -1,0 +1,10 @@
+# E3 with region=lung_masked -- ResNet-18, train montgomery, test shenzhen, cross.
+# Lungs blacked out, everything else kept: if AUC stays high, the model is using cues outside the lungs.
+# Montgomery uses its manual masks; Shenzhen uses the U-Net masks from script 03.
+name: E3_mc_to_sz_cross_lungmask
+description: ResNet-18, lung_masked, train montgomery, test shenzhen (cross).
+train: montgomery
+test: shenzhen
+region: lung_masked
+model: resnet18
+eval_mode: cross

@@ -1,0 +1,14 @@
+# Phase 6 correction: CLAHE (contrast-limited adaptive histogram equalisation), applied to every image (train and test)
+# using only that image's own pixels. Compare against E4_classical_sz_to_mc_cross (no correction)
+# with 08_compare_auc.py.
+# Needs: python scripts/04_build_features.py --corrections clahe
+name: E4_classical_sz_to_mc_cross_clahe
+description: lung-field features, LR, clahe, train all of shenzhen, test all of montgomery.
+train: shenzhen
+test: montgomery
+region: whole
+model: classical
+eval_mode: cross
+correction: clahe
+model_cfg:
+  classical_estimator: logreg

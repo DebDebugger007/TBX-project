@@ -1,0 +1,43 @@
+# Shared defaults. Experiment files in this folder override only what they need.
+# Every path is relative to the repository root unless you make it absolute.
+
+paths:
+  raw_root: data/raw
+  processed_root: data/processed
+  metadata_csv: data/processed/metadata.csv
+  splits_dir: data/processed/splits
+  masks_dir: data/processed/masks
+  outputs_root: outputs
+
+data:
+  image_size: 224
+  pad_to_square: true
+  montgomery_bits: 12
+  n_folds: 5
+  seed: 42
+
+features:
+  glcm_distances: [1, 2, 4]
+  glcm_angles_deg: [0, 45, 90, 135]
+  glcm_levels: 32
+  lbp_radius: 3
+  lbp_points: 24
+  intensity_bins: 16
+
+model_cfg:
+  pretrained: true
+  classical_estimator: logreg
+  epochs: 40
+  batch_size: 16
+  lr: 0.0001
+  weight_decay: 0.0001
+  freeze_backbone_epochs: 3
+  aug_rotation_deg: 7.0
+  aug_brightness: 0.1
+  aug_crop_scale: 0.9
+
+eval:
+  bootstrap_n: 2000
+  ci: 0.95
+  screening_sensitivity: 0.90
+  min_subgroup_n: 10

@@ -1,0 +1,12 @@
+# Data and outputs are regenerated, never committed
+data/raw/
+data/processed/
+outputs/
+*.pt
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.ipynb_checkpoints/

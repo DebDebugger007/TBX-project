@@ -1,0 +1,11 @@
+# E0 — classical lung-field baseline, within-set 5-fold on each dataset.
+# Maps to RQ1 / RQ5, Phase 4. Run once with train/test montgomery, once shenzhen.
+name: E0_classical_within
+description: Texture + intensity features inside the lung field, LR/SVM, 5-fold.
+train: montgomery     # switch to shenzhen for the second run
+test: montgomery
+region: whole          # ignored by the classical model (always lung-field)
+model: classical
+eval_mode: within
+model_cfg:
+  classical_estimator: logreg   # set to svm for the RBF-SVM variant

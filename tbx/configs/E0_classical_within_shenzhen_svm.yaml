@@ -1,0 +1,10 @@
+# E0 (SVM, Shenzhen) -- RBF-SVM variant of the classical baseline, within Shenzhen.
+name: E0_classical_within_shenzhen_svm
+description: Texture + intensity features inside the lung field, RBF-SVM, 5-fold on SZ.
+train: shenzhen
+test: shenzhen
+region: whole
+model: classical
+eval_mode: within
+model_cfg:
+  classical_estimator: svm

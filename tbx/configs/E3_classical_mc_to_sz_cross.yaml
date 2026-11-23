@@ -1,0 +1,12 @@
+# E3 (classical) -- cross-dataset lung-field baseline: train montgomery, test shenzhen once.
+# Compare its drop against the CNN's E3: a smaller drop for this lung-only model
+# is evidence the CNN relies on cues outside the lungs. Needs 03 + 04 run first.
+name: E3_classical_mc_to_sz_cross
+description: Lung-field texture features, LR, train all of montgomery, test all of shenzhen.
+train: montgomery
+test: shenzhen
+region: whole          # ignored by the classical model (always lung-field)
+model: classical
+eval_mode: cross
+model_cfg:
+  classical_estimator: logreg
