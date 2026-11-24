@@ -1,0 +1,108 @@
+% =====================================================================
+%  vip.sty  --  Visible In-Progress (VIP) report style
+%  University of Hertfordshire, MSc Project (IPR and FPR)
+%  You do not need to edit this file. Edit ipr_main.tex / fpr_main.tex.
+% =====================================================================
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{vip}[2026/10/29 VIP report style]
+
+% ---------- fonts and page layout ------------------------------------
+\RequirePackage[T1]{fontenc}
+\RequirePackage{charter}
+\RequirePackage[a4paper, left=20mm, right=20mm, top=25mm, bottom=25mm]{geometry}
+\RequirePackage{setspace}
+\onehalfspacing
+\RequirePackage{parskip}          % no indent, space between paragraphs
+
+% ---------- figures, tables, maths -----------------------------------
+\RequirePackage{graphicx}
+\RequirePackage{booktabs}         % nice table lines: \toprule \midrule \bottomrule
+\RequirePackage{array}
+\RequirePackage{tabularx}
+\RequirePackage[font=small]{caption}
+\RequirePackage{amsmath, amssymb}
+
+% ---------- code listings (code as text, never screenshots) ---------
+\RequirePackage{xcolor}
+\RequirePackage{listings}
+\lstdefinestyle{vip}{
+  backgroundcolor=\color[rgb]{0.96,0.96,0.94},
+  basicstyle=\ttfamily\small,
+  commentstyle=\color[rgb]{0,0.5,0},
+  keywordstyle=\color[rgb]{0.6,0,0.6},
+  stringstyle=\color[rgb]{0.6,0,0},
+  numbers=left, numberstyle=\tiny\color{gray}, numbersep=4pt,
+  breaklines=true, showstringspaces=false, tabsize=2, captionpos=b
+}
+\lstset{style=vip}
+
+% ---------- Harvard referencing --------------------------------------
+\RequirePackage[authoryear,round]{natbib}
+
+% ---------- automatic contents, figures and tables lists -------------
+\RequirePackage{tocloft}
+\setlength\cftparskip{2pt}
+\setlength\cftbeforesecskip{4pt}
+\setlength\cftaftertoctitleskip{1em}
+\RequirePackage[toc,page]{appendix}
+
+\RequirePackage[hidelinks]{hyperref}
+
+% ---------- project details (set these in your main .tex file) -------
+\newcommand{\projecttitle}[1]{\def\@projecttitle{#1}}
+\newcommand{\studentname}[1]{\def\@studentname{#1}}
+\newcommand{\studentnumber}[1]{\def\@studentnumber{#1}}
+\newcommand{\supervisor}[1]{\def\@supervisor{#1}}
+\newcommand{\modulecode}[1]{\def\@modulecode{#1}}
+\newcommand{\moduletitle}[1]{\def\@moduletitle{#1}}
+\newcommand{\reporttype}[1]{\def\@reporttype{#1}}
+\newcommand{\gitrepo}[1]{\def\@gitrepo{#1}}
+\newcommand{\gitrelease}[1]{\def\@gitrelease{#1}}
+\projecttitle{Project Title}\studentname{Student Name}\studentnumber{SRN}
+\supervisor{Supervisor}\modulecode{7COM1039}\moduletitle{MSc Project}
+\reporttype{Report}\gitrepo{https://github.com/username/repository}\gitrelease{v1.0}
+
+% proof-read confirmation (used on the FPR cover page)
+\newif\ifproofread \proofreadfalse
+
+% ---------- cover page -----------------------------------------------
+\newcommand{\makecoverpage}{%
+  \begin{titlepage}
+    \centering
+    \IfFileExists{herts-logo-black.png}{\includegraphics[width=0.35\textwidth]{herts-logo-black.png}\par\vspace{2cm}}{\vspace*{2cm}}
+    {\Large University of Hertfordshire\par}
+    {\large School of Physics, Engineering and Computer Science\par}
+    \vspace{2cm}
+    \rule{\linewidth}{0.5mm}\par\vspace{0.4cm}
+    {\huge\bfseries \@projecttitle\par}
+    \vspace{0.2cm}\rule{\linewidth}{0.5mm}\par
+    \vspace{1cm}
+    {\Large \@reporttype\par}
+    \vspace{1.5cm}
+    \begin{tabular}{>{\bfseries}l l}
+      Module:          & \@modulecode\ \@moduletitle \\
+      Student:         & \@studentname\ (\@studentnumber) \\
+      Supervisor:      & \@supervisor \\
+      Date:            & \today \\
+      Git repository:  & \url{\@gitrepo} \\
+      GitHub release:  & \texttt{\@gitrelease} \\
+    \end{tabular}
+    \vfill
+    \ifproofread
+      \fbox{\parbox{0.9\linewidth}{\small I confirm that I have critically proof-read
+      and quality checked this report. It is free from grammar, spelling and formatting
+      errors, and meets high standards of clarity, coherence and presentation.}}
+    \fi
+  \end{titlepage}
+}
+
+% ---------- contents pages -------------------------------------------
+\newcommand{\makecontents}{%
+  \setcounter{tocdepth}{2}
+  \tableofcontents\clearpage
+}
+\newcommand{\makelists}{%
+  \listoffigures\listoftables\clearpage
+}
+
+\endinput

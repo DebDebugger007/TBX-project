@@ -1,0 +1,544 @@
+% =====================================================================
+%  Interim Progress Report (IPR) -- 10% of the module
+%  Visible In-Progress (VIP) template. Expected length: 8-14 pages.
+%
+%  VIP rules (please read):
+%   1. Commit and push after each writing session with a clear message,
+%      e.g. "IPR: drafted literature review, 3 papers compared".
+%   2. Your supervisor reviews your history before each meeting.
+%   3. Before submitting, create a GitHub release called IPR-v1.0 with this
+%      PDF attached (see 'Create your release' in the notebook).
+%   4. Export the PDF and submit it on Canvas (Canvas is the official record).
+% =====================================================================
+\documentclass[11pt,a4paper]{article}
+\usepackage{vip}
+
+% ---------- (vip.sty already loads graphicx, booktabs, tabularx and listings) ----
+
+% ---------- EDIT YOUR DETAILS ----------------------------------------
+\projecttitle{Diagnosing Tuberculosis in Chest X-rays from Two Countries: A Cross-Dataset Study of Generalisation, Lung Masking and Simple Corrections on the Montgomery and Shenzhen Sets}
+\studentname{Izuchukwu Agballah}
+\studentnumber{12345678}
+\supervisor{Muhammad Yaqoob}
+\modulecode{7COM1039}
+\moduletitle{MSc Project}
+\reporttype{Interim Progress Report (IPR)}
+\gitrepo{https://github.com/Izuchukwu-A/msc-project-agballah.git}
+\gitrelease{IPR-v1.0}   % the release you create before submitting
+
+
+\begin{document}
+\makecoverpage
+\makecontents
+
+\section{Background Research and Literature Review}
+\subsection{Goals and Objectives}
+Tuberculosis remains one of the most common fatal infections in the world, and for most patients the first test they receive is a chest X-ray. The difficulty is that the countries carrying the heaviest TB burden tend to be the same countries with the fewest radiologists, so the people who most need a quick, reliable reading are the least likely to get one. The US National Library of Medicine released two public TB chest X-ray datasets together: the Montgomery County set (138 images, 58 TB and 80 normal, with radiologist-supervised lung masks) and the Shenzhen set (662 images, 336 TB and 326 normal). What makes the pair valuable is their difference -- two countries, two hospitals, two machines and two populations -- which allows the one test that matters for screening: whether a model built in one hospital still works in another. \citep{jaeger2014}
+
+\noindent\textbf{Aim.} The aim is to measure how much of a tuberculosis chest X-ray screening result survives testing on a different hospital's data, to establish how much of the predictive signal lies outside the lungs, and to evaluate which simple, deployable corrections recover the part that does not transfer, using one reproducible pipeline in which the training and test datasets are settings rather than code changes.
+
+\noindent\textbf{Objectives.}
+\begin{enumerate}\itemsep2pt
+  \item Review the literature on automated TB screening and on dataset shift in medical imaging, including published cases where models learned hospital markers rather than disease.
+  \item Acquire both datasets, inspect them side by side, and record every visual difference a model might latch onto other than disease.
+  \item Build a reproducible pipeline that can train on either set and test on either set, with the direction as a configuration setting.
+  \item Establish within-dataset baselines for each set separately, using a classical feature-based model and a CNN, reported with 95\% confidence intervals.
+  \item Run the cross-dataset test in both directions and measure whether the drop is symmetric.
+  \item Train on lung-cropped images and, separately, on lung-masked images to measure how much signal sits outside the lungs.
+  \item Compare intensity normalisation, mixed-dataset training and a small number of target-hospital images as corrections.
+  \item Break the errors down by age and sex and report for whom the system fails.
+\end{enumerate}
+
+\noindent\textbf{Scope.} The project covers the full pipeline for binary TB-versus-normal classification of frontal chest X-rays on the two NLM datasets: reading the images and clinical readings, auditing them visually, preprocessing, generating lung masks, training a classical baseline and a CNN, and evaluating within and across datasets with confidence intervals. It does not extend to additional external datasets, lesion localisation, TB subtype classification, or any clinical deployment or prospective validation, which sit outside what one person can do well inside a 12-week module.
+\subsection{Research Question}
+The central question is how much of a TB screening result survives a move to a different hospital, and why. It is broken into five research questions:
+\begin{enumerate}\itemsep2pt
+  \item How large is the performance drop when a model is trained on one country's X-rays and tested on the other's, and is the drop the same in both directions?
+  \item Does the model use the lungs at all? How much performance remains when the lungs are masked out, and does cropping to the lungs reduce the cross-dataset drop?
+  \item Which simple correction recovers the most lost performance: intensity normalisation, training on a mixture of both sets, or adding a small number of target-hospital images, and how few of those images are enough?
+  \item Do age or sex, taken from the clinical readings, predict the model's errors?
+  \item With only 138 images in one set, how wide are the confidence intervals, and which reported differences survive them?
+\end{enumerate}
+\subsection{Background Research}
+\noindent\textbf{The problem. }Almost every published TB result on these datasets is a within-dataset score, or a score on a pool that mixes both sources in training and testing \citep{pasa2019}. In a mixed pool, a model can partly succeed by recognising which hospital an image came from, because the two sources differ in prevalence, equipment and image framing. \citet{zech2018} showed that a convolutional network can identify the source hospital of a chest X-ray with near-perfect accuracy, so this is not a hypothetical worry. Even a good cross-hospital score does not prove the model is looking at the lungs: \citet{maguolo2021} blacked out most of the lung region in COVID-19 chest X-rays and their classifiers still performed well. No published work has run that check on the Montgomery and Shenzhen pair in both directions, with honest confidence intervals on a set as small as 138 images.
+
+The literature review is built around five sources, each checked against its publisher, PubMed Central or IEEE Xplore record before being cited, and each carrying a distinct part of the argument. \citet{jaeger2014} released the two datasets used throughout. \citet{pasa2019} showed that a small convolutional network matches much larger ones on these sets, but like most TB papers it mixes or pools sources, so it says little about cross-hospital behaviour. \citet{zech2018} is the closest template for the design used here, and \citet{maguolo2021} is the direct precedent for the lung-masking experiment. The most recent and most relevant work, \citet{hansun2024}, trained an EfficientNet ensemble on the same two datasets and reported a domain-shift experiment in both directions, with cross-dataset accuracy falling to around 84 per cent for Montgomery-trained models applied to Shenzhen and nearer 89 per cent in reverse. That paper confirms the problem is real and asymmetric on these exact sets, but it reports accuracy rather than threshold-independent AUC, does not isolate how much of the signal lies outside the lungs, and does not test simple corrections against each other -- the three gaps this project closes, with a confidence interval on every number. Table~\ref{tab:lit} summarises the five sources.
+
+\begin{table}[htbp]
+  \centering
+  \caption{The five core sources: approach, data, contribution and the gap each leaves.}
+  \label{tab:lit}
+  \footnotesize
+  \begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.17\linewidth} >{\raggedright\arraybackslash}p{0.17\linewidth} X >{\raggedright\arraybackslash}p{0.19\linewidth} >{\raggedright\arraybackslash}p{0.19\linewidth}}
+    \toprule
+    \textbf{Study} & \textbf{Approach} & \textbf{Data \& split} & \textbf{Key contribution} & \textbf{Gap targeted} \\
+    \midrule
+    Jaeger et al. (2014) & Dataset release & Montgomery (138) and Shenzhen (662), clinical readings and MC lung masks & Released the two public TB benchmark sets & Defines the data, not a method \\
+    Pasa et al. (2019) & Compact CNN with saliency & Montgomery and Shenzhen & Small model matches larger ones; shows where it looks & Sources mixed; no train-one, test-other \\
+    Zech et al. (2018) & CNN pneumonia, cross-site & Three US hospital systems & Accuracy drops at an outside hospital; CNN can identify the source & Pneumonia; no lung-masking control \\
+    Maguolo \& Nanni (2021) & Lungs blacked out & COVID-19 chest X-rays & Classifiers still score well with lungs hidden & COVID-19 only; motivates the masking test \\
+    Hansun et al. (2024) & EfficientNet ensemble & Montgomery and Shenzhen; both directions & Reports an asymmetric domain-shift drop on these sets & Accuracy not AUC; no masking; no correction comparison \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+\section{Summary of Progress to Date}
+\subsection{Dataset Preparation and Exploratory Analysis}
+Both sets were downloaded from the NLM repository and the counts checked against the published figures: 138 Montgomery images (58 TB, 80 normal) and 662 Shenzhen images (336 TB, 326 normal), matching Table~\ref{tab:data}. Each clinical-reading text file was parsed with regular expressions into one metadata table carrying age, sex, label and the free-text finding; an age written as '035Y' is normalised to 35, and the sex variants are mapped to one code. Montgomery's 12-bit images are scaled to a [0,1] float using the actual value range, every image is padded to a square and resized with its aspect ratio preserved (never stretched) to 224 pixels, and the left and right Montgomery masks are merged. Stratified five-fold split files were frozen once under seed 42 and reused by every experiment, so the classical model and the CNN are always compared on identical folds.
+
+\begin{table}[htbp]
+  \centering
+  \caption{The two NLM datasets as published and verified on download.}
+  \label{tab:data}
+  \footnotesize
+  \begin{tabularx}{\linewidth}{l X X}
+    \toprule
+    \textbf{} & \textbf{Montgomery County (USA)} & \textbf{Shenzhen (China)} \\
+    \midrule
+    Setting & County TB screening, Maryland & Hospital out-patient clinics, Guangdong \\
+    Images & 138 & 662 \\
+    TB / normal & 58 / 80 & 336 / 326 \\
+    TB prevalence & 42\% & 51\% \\
+    Resolution & 4020 x 4892 (approx.) & About 3000 x 3000, varies \\
+    Grey levels & 12-bit & Standard PNG \\
+    Lung masks & Hand-drawn, radiologist-supervised & None supplied \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+EDA came before any modelling. A grid of images from both sets was viewed side by side and a shortcut-audit checklist worked through, recording everything a model could use other than disease. Montgomery films carry large pure-black borders, up to about a third of the frame, that Shenzhen films do not, and the two sources differ in contrast and framing. Class balance, age and sex distributions were plotted per set and per class (Table~\ref{tab:agesex}). TB patients are older than normal patients in both sets, markedly so in Montgomery (mean age 48 versus 34), and Montgomery's sex balance is tangled with its labels, which is the direct justification for the age and sex error analysis in Phase 6.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Per-set, per-class age and sex summary from the parsed clinical readings. Age in years.}
+  \label{tab:agesex}
+  \small
+  \begin{tabularx}{\linewidth}{l l r r r r}
+    \toprule
+    \textbf{Dataset} & \textbf{Class} & \textbf{n} & \textbf{Mean age} & \textbf{Age SD} & \textbf{\% female} \\
+    \midrule
+    Montgomery & Normal & 80 & 34.3 & 15.4 & 66.2 \\
+    Montgomery & TB & 58 & 48.1 & 20.1 & 36.2 \\
+    Shenzhen & Normal & 326 & 33.1 & 14.3 & 32.2 \\
+    Shenzhen & TB & 336 & 37.7 & 15.0 & 32.1 \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+Shenzhen ships no lung masks, so a small U-Net was trained on the 138 Montgomery images and their supplied masks and used to generate Shenzhen masks. On held-out Montgomery images the U-Net reached a validation Dice of 0.974, and the generated masks were spot-checked by eye. Figures~\ref{fig:audit}--\ref{fig:masks} show the visual audit, the intensity histograms and the mask overlays.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.52\linewidth]{fig1.png}
+  \caption{Side-by-side visual audit. Montgomery films (top) carry large black borders and differ from Shenzhen films (bottom) in framing and contrast.}
+  \label{fig:audit}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.75\linewidth]{fig2.png}
+  \caption{Per-set intensity histograms. The two hospitals sit at different exposure and contrast ranges.}
+  \label{fig:hist}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.7\linewidth]{fig3.png}
+  \caption{U-Net lung masks generated for Shenzhen (which ships none), overlaid for a visual check. Validation Dice on held-out Montgomery images was 0.974.}
+  \label{fig:masks}
+\end{figure}
+\subsection{Model Development and Tools}
+The classical baseline computes grey-level co-occurrence, local-binary-pattern and intensity-histogram features inside the lung mask only, and classifies them with logistic regression or an RBF-kernel SVM. Because it is restricted to the lungs by design, it cannot use borders or markers, which makes it a useful contrast with the whole-image CNN. The main deep model is an ImageNet-pretrained ResNet-18 fine-tuned at 224 pixels, with DenseNet-121 run as an architecture check; the backbone is frozen for three warm-up epochs, the loss is class-weighted, and augmentation is mild with deliberately no horizontal flip (which would move the heart and any laterality marker to the wrong side).
+
+\noindent\textbf{Tools. }The implementation uses Python with NumPy, pandas and SciPy, OpenCV and Pillow for image handling, and scikit-image and scikit-learn for the texture features, the classical baseline and the metrics. The CNN and the U-Net are built in PyTorch with torchvision and timm, with Grad-CAM from pytorch-grad-cam. Training runs on an NVIDIA RTX 4060 laptop GPU through WSL2 Ubuntu, with Google Colab as a fallback. The central design decision, driven by the brief, is that the direction of an experiment is a setting and not a code change: every experiment is one YAML file naming the training set, the test set, the image region, the model, the evaluation mode and the intensity correction, and the same code runs any of them. Everything is version-controlled on GitHub (see the cover page for the repository).
+\subsection{Results}
+AUC is the headline metric throughout, with a 95\% confidence interval from 2,000 stratified bootstrap resamples on every number, and sensitivity and specificity reported at a threshold fixed on the training data. The full experiment matrix is in Appendix~\ref{app:results}; the tables here pull out the comparisons that answer the research questions.
+
+\noindent\textbf{Within-set baselines (RQ1, RQ5). }Both models work within a dataset and both are stronger on the larger Shenzhen set (Table~\ref{tab:within}). The CNN beats the classical model on Shenzhen by a margin that survives DeLong's test (0.933 versus 0.866, Holm-corrected $p<0.001$), but on Montgomery the same comparison (0.858 versus 0.804) does not reach significance: with 138 images the confidence intervals are too wide to separate the two models, which is RQ5 answering itself on the first table.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Within-set results (stratified five-fold, whole image). AUC with 95\% bootstrap CI.}
+  \label{tab:within}
+  \small
+  \begin{tabularx}{\linewidth}{l X c c c}
+    \toprule
+    \textbf{Dataset} & \textbf{Model} & \textbf{AUC (95\% CI)} & \textbf{Sens.} & \textbf{Spec.} \\
+    \midrule
+    Montgomery & Classical (LR) & 0.804 (0.723--0.876) & 0.85 & 0.65 \\
+    Montgomery & ResNet-18 & 0.858 (0.786--0.922) & 0.74 & 0.86 \\
+    Montgomery & DenseNet-121 & 0.876 (0.816--0.927) & 0.60 & 0.94 \\
+    Shenzhen & Classical (LR) & 0.866 (0.837--0.893) & 0.87 & 0.67 \\
+    Shenzhen & ResNet-18 & 0.933 (0.913--0.951) & 0.80 & 0.91 \\
+    Shenzhen & DenseNet-121 & 0.921 (0.900--0.941) & 0.77 & 0.93 \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\noindent\textbf{The cross-dataset drop and its asymmetry (RQ1). }This is the central result (Table~\ref{tab:cross}). Training the whole-image ResNet-18 on Montgomery and testing on Shenzhen collapses to an AUC of 0.637, a drop of nearly 0.30; training on the larger Shenzhen set and testing on Montgomery holds up far better at 0.794. The drop is real and not symmetric -- the larger, more varied training set generalises, the small one does not -- and the direction matches \citet{hansun2024}. The classical model is starker still: trained on Montgomery and tested on Shenzhen it scores 0.298, below chance, meaning its ranking is inverted at the new hospital.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Cross-dataset results, whole image, no correction. The drop is the difference from the within-set AUC on the test set.}
+  \label{tab:cross}
+  \small
+  \begin{tabularx}{\linewidth}{X l c c c}
+    \toprule
+    \textbf{Train $\rightarrow$ Test} & \textbf{Model} & \textbf{Cross AUC (95\% CI)} & \textbf{Within AUC} & \textbf{Drop} \\
+    \midrule
+    Montgomery $\rightarrow$ Shenzhen & ResNet-18 & 0.637 (0.593--0.677) & 0.933 & $-$0.296 \\
+    Shenzhen $\rightarrow$ Montgomery & ResNet-18 & 0.794 (0.711--0.873) & 0.858 & $-$0.064 \\
+    Montgomery $\rightarrow$ Shenzhen & Classical & 0.298 (0.257--0.340) & 0.866 & $-$0.568 \\
+    Shenzhen $\rightarrow$ Montgomery & Classical & 0.582 (0.478--0.680) & 0.804 & $-$0.222 \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\noindent\textbf{Does the model use the lungs (RQ2)? }Within Shenzhen, masking the lungs out drops the AUC from 0.933 to 0.875 -- a significant fall, so the lungs carry real signal -- but 0.875 is still far above chance on a model that never sees the lungs, confirming \citet{maguolo2021}. Cropping to the lungs helps the hard direction: Montgomery $\rightarrow$ Shenzhen rises from 0.637 to 0.772, a significant gain, so part of what broke the cross-dataset model was the borders, framing and markers around the lungs (Table~\ref{tab:paired}).
+
+\begin{table}[htbp]
+  \centering
+  \caption{Paired AUC comparisons (DeLong, Holm-corrected within each family). A positive difference means the first model scored higher.}
+  \label{tab:paired}
+  \footnotesize
+  \begin{tabularx}{\linewidth}{X c c c c c}
+    \toprule
+    \textbf{Comparison} & \textbf{AUC A} & \textbf{AUC B} & \textbf{Diff} & \textbf{p (Holm)} & \textbf{Sig.} \\
+    \midrule
+    Shenzhen within: whole vs lung-masked & 0.933 & 0.875 & +0.058 & 6e-06 & yes \\
+    Shenzhen within: whole vs lung-cropped & 0.933 & 0.925 & +0.008 & 0.80 & no \\
+    Shenzhen within: CNN vs classical & 0.933 & 0.866 & +0.067 & 1e-06 & yes \\
+    Montgomery within: CNN vs classical & 0.858 & 0.804 & +0.054 & 0.80 & no \\
+    MC$\rightarrow$SZ cross: whole vs lung-cropped & 0.637 & 0.772 & $-$0.135 & 1e-07 & yes \\
+    MC$\rightarrow$SZ cross: whole vs lung-masked & 0.637 & 0.703 & $-$0.065 & 0.07 & no \\
+    MC$\rightarrow$SZ cross: CNN vs classical & 0.637 & 0.298 & +0.339 & 2e-32 & yes \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\noindent\textbf{Which correction recovers the loss (RQ3, in part)? }The first correction strand, per-image intensity normalisation, is complete (Table~\ref{tab:corr}). Applying CLAHE to every image, using only that image's own pixels, lifts Montgomery $\rightarrow$ Shenzhen from 0.637 to 0.856 -- almost all of the cross-dataset drop recovered by a correction that needs no labels and no target-hospital data. Histogram equalisation and z-scoring help too (0.784 and 0.824), and all three gains survive the Holm correction. The easy direction gains nothing significant, as expected. The mixed-dataset and few-shot corrections, and the age and sex analysis, are the remaining Phase 6 work.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Intensity corrections on the ResNet-18 cross-dataset runs, against the uncorrected run.}
+  \label{tab:corr}
+  \small
+  \begin{tabularx}{\linewidth}{X c c c c X}
+    \toprule
+    \textbf{Direction} & \textbf{None} & \textbf{Histeq} & \textbf{CLAHE} & \textbf{z-score} & \textbf{Best vs none} \\
+    \midrule
+    Montgomery $\rightarrow$ Shenzhen & 0.637 & 0.784 & 0.856 & 0.824 & CLAHE, +0.218 (p$<$1e-26) \\
+    Shenzhen $\rightarrow$ Montgomery & 0.794 & 0.764 & 0.774 & 0.841 & none significant \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+\subsection{Problems Encountered}
+\noindent\textbf{The black-border problem. }Montgomery's large pure-black borders, which Shenzhen lacks, interfered with the intensity corrections, because histogram equalisation and z-scoring take their statistics from the whole frame by default and would amplify the very acquisition difference the correction is meant to remove. The fix was to compute each correction's statistics from the image content only and leave the border pixels black (Figure~\ref{fig:corr}). CLAHE, being tile-local, is less sensitive to this, which is part of why it came out strongest.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.75\linewidth]{fig4.png}
+  \caption{The three intensity corrections on a sample image, with statistics taken from the lung content only so the Montgomery borders stay black.}
+  \label{fig:corr}
+\end{figure}
+\noindent\textbf{The threshold that would not transfer. }A threshold fixed on one hospital's scores often lands badly on the other's, so some cross-dataset runs show a collapsed sensitivity or specificity even with a usable AUC. Rather than hide this by re-tuning on the test hospital (which no real deployment could do), the project reports AUC as the primary metric and treats the fixed-threshold numbers as the honest picture.
+
+\noindent\textbf{Montgomery's 138 images. }The small set produces confidence intervals wide enough that the CNN and the classical model cannot be separated within Montgomery, which is why every number carries a bootstrap interval and every paired claim goes through DeLong's test. That width is treated as a finding, not a nuisance. Both papers named in the brief are now retrieved and folded into the review; neither changes any reported result.
+\subsection{Evidence of Work Completed}
+\begin{itemize}\itemsep2pt
+  \item Literature review complete, built around five core sources (Table~\ref{tab:lit}).
+  \item Both datasets downloaded and verified, clinical readings parsed into one metadata table, Montgomery masks merged, frozen stratified five-fold splits under seed 42.
+  \item EDA complete: visual-audit grid, class-balance, age, sex and intensity plots.
+  \item Lung U-Net trained on Montgomery (validation Dice 0.974) and used to generate and spot-check Shenzhen masks.
+  \item Classical lung-field baseline and ResNet-18 / DenseNet-121 CNNs implemented and run.
+  \item Within-set, cross-dataset (both directions), lung-cropped and lung-masked, and the full intensity-correction family -- every run with 95\% bootstrap CIs and Holm-corrected DeLong tests.
+  \item A configuration-driven pipeline in a Git repository, with a synthetic smoke test, in which the experiment direction is a setting rather than a code change.
+\end{itemize}
+\section{Ethical, Legal, Professional and Social Issues}
+This project uses two publicly available chest X-ray datasets released by the US National Library of Medicine, so it involves no new patient recruitment, no data collection and no contact with human participants. The images and clinical readings were de-identified by the dataset creators before release \citep{jaeger2014}. Because the data is used entirely in that existing, anonymised form, the ethical risk is judged minimal, and the supervisor will be consulted on whether the module's ethics self-declaration needs to be filed for secondary use of open data. Re-identification risk is not treated as automatically zero, since the clinical readings carry age and sex, but no identifying information is introduced, collected or linked at any point.
+
+Legally, the datasets are distributed publicly for research use, and the project complies with the providers' terms by citing the dataset paper in full and by not redistributing the images in its own repository. Since the data is anonymised and contains no direct identifiers, it does not fall under the UK GDPR as personal data, and no data controller or processor obligations apply.
+
+On the professional side, the work is held to the standards of honesty and competence the BCS Code of Conduct expects, particularly in how results are reported: every configuration that was run is reported rather than only the best, a confidence interval is put on every number, and a negative result is presented as a finding rather than dressed up. The code is shared on GitHub so the results can be reproduced.
+
+The social side is, in a sense, the point of the project. A TB screening tool that quietly fails at a new hospital, or for one sex or age group, would delay diagnosis for exactly the people it is meant to help, and chest X-ray models are known to under-diagnose some patient groups more than others. The work is framed throughout as a research evaluation, not a clinical tool, and it is transparent that two datasets from two hospitals cannot stand in for the full diversity of real screening populations.
+\section{Project Plan}
+The project runs across seven phases over 12 weeks, managed through weekly supervision and version control, with scope fixed in advance and risk tracked in a register. Phases 1--5 and the intensity-correction part of Phase 6 are complete; the remaining Phase 6 work and the Phase 7 write-up and release remain. Methodology and results are drafted as each phase finishes, so the write-up does not compress at the end. The remaining tasks are in Table~\ref{tab:remaining}, the phase plan in Table~\ref{tab:phases}, and the live risk register in Table~\ref{tab:risk}.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Remaining tasks.}
+  \label{tab:remaining}
+  \small
+  \begin{tabularx}{\linewidth}{l X l}
+    \toprule
+    \textbf{Task} & \textbf{Deliverable} & \textbf{Target date} \\
+    \midrule
+    Mixed-dataset training (E8) & Pooled-training correction, both held-out sets & 08/12/2026 \\
+    Few-shot recovery curve (E9) & Recovery curve for k = 5, 10, 20, 50 target images & 15/12/2026 \\
+    Age and sex error analysis (RQ4) & False-negative / false-positive rates by subgroup & 22/12/2026 \\
+    Best-of synthesis (E10) & Strongest correction reported in both directions & 05/01/2027 \\
+    Dissertation write-up & Full FPR draft & 16/02/2027 \\
+    GitHub release and demo & Tagged release and demonstration & 01/03/2027 \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Project phases, weeks and status.}
+  \label{tab:phases}
+  \small
+  \begin{tabularx}{\linewidth}{l l X l}
+    \toprule
+    \textbf{Phase} & \textbf{Weeks} & \textbf{Key tasks} & \textbf{Status} \\
+    \midrule
+    Phase 1 & 1--2 & Literature review and proposal finalisation & Complete \\
+    Phase 2 & 3--4 & Dataset acquisition, verification, metadata parsing, pipeline set-up & Complete \\
+    Phase 3 & 4--5 & EDA, shortcut audit and Shenzhen lung-mask generation & Complete \\
+    Phase 4 & 5--7 & Classical baseline and CNN, tuning and within-set evaluation & Complete \\
+    Phase 5 & 7--8 & Cross-dataset tests both directions; lung-cropped and lung-masked & Complete \\
+    Phase 6 & 9--10 & Corrections, few-shot recovery curve, age and sex error analysis & In progress \\
+    Phase 7 & 10--12 & Dissertation write-up and GitHub code release & Planned \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Risk register, updated for this reporting period.}
+  \label{tab:risk}
+  \small
+  \begin{tabularx}{\linewidth}{X l X}
+    \toprule
+    \textbf{Risk} & \textbf{Likelihood / Impact} & \textbf{Mitigation / status} \\
+    \midrule
+    GPU time runs short for 512-pixel and few-shot runs & Medium / Medium & Running at 224 pixels; Colab fallback; 512-pixel runs are optional, dropped first if needed \\
+    U-Net masks for Shenzhen are poor & Low / Medium & Retired: Dice 0.974 and spot-checked; fallback not needed \\
+    Montgomery's 138 images make results inconclusive & High / Medium & Handled: bootstrap intervals and DeLong tests throughout; the CNN-vs-classical tie is reported as a finding \\
+    Data leakage between folds & Low / High & Frozen split files; normalisation fitted on training data only; each cross test set touched once \\
+    Dissertation write-up compresses at the end & Medium / High & Methodology and results drafted as each phase finished \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+\section{Level of the Project}
+The project is undertaken at Master's standard as the capstone of the MSc, and its demands match that level in three respects. First, it closes a genuine gap rather than reproducing a known result: no published study has run a two-directional, cross-hospital evaluation of TB screening on the Montgomery and Shenzhen sets together with a lung-masking control and a comparison of simple corrections. Second, it engages critically with the recent literature on dataset shift and shortcut learning \citep{zech2018,maguolo2021,hansun2024} and turns that critique into a concrete experimental design rather than accepting headline accuracy at face value. Third, the technical work spans a full, reproducible research pipeline -- segmentation with a trained U-Net, a classical lung-field baseline, fine-tuned convolutional networks, and a statistically careful evaluation using stratified bootstrap confidence intervals and Holm-corrected DeLong tests -- all driven from configuration so that any experiment is a setting rather than a code change. The honest reporting of an uncertain result, such as the wide Montgomery intervals that leave two models statistically indistinguishable, is itself a mark of research maturity and is treated as a finding. The artefact is validated by within-set baselines, a two-directional cross-dataset test, and region-control experiments, with every number carrying a confidence interval.
+% =====================================================================
+\clearpage\phantomsection
+\addcontentsline{toc}{section}{References}
+\bibliographystyle{agsm}
+\bibliography{refs}
+
+\begin{appendices}
+\section{Intermediate Results}\label{app:results}
+The 12-week plan runs across Phases 1--7. At this reporting point Phases 1 to 5 are complete, together with the intensity-correction part of Phase 6; the remaining Phase 6 work and the Phase 7 write-up and release are outstanding (Figure~\ref{fig:gantt}).
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\linewidth]{fig5.png}
+  \caption{12-week project plan. Phases 1--5 complete; Phase 6 part complete (intensity corrections done); Phase 7 planned. Diamonds mark milestones M1--M5; the dashed line marks the Week 9 reporting point.}
+  \label{fig:gantt}
+\end{figure}
+Table~\ref{tab:matrix} maps every planned experiment to its research question and phase; Table~\ref{tab:full} gives the full results for every configuration run to date.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Experiments mapped to the research questions and the phase in which each runs.}
+  \label{tab:matrix}
+  \small
+  \begin{tabularx}{\linewidth}{l l l X l l}
+    \toprule
+    \textbf{ID} & \textbf{Train} & \textbf{Test} & \textbf{Model / correction} & \textbf{RQ} & \textbf{Result (AUC)} \\
+    \midrule
+    E0 & MC / SZ & 5-fold & Texture + LR / SVM & RQ1,5 & MC 0.80; SZ 0.87 \\
+    E1 & MC & MC & ResNet-18 / DenseNet & RQ1,5 & 0.86 / 0.88 \\
+    E2 & SZ & SZ & ResNet-18 / DenseNet & RQ1,5 & 0.93 / 0.92 \\
+    E3 & MC & SZ & ResNet-18, none & RQ1,5 & 0.637 \\
+    E4 & SZ & MC & ResNet-18, none & RQ1,5 & 0.794 \\
+    E5 & MC $\leftrightarrow$ SZ & both & Lung-cropped & RQ2 & MC$\rightarrow$SZ 0.772 \\
+    E6 & MC $\leftrightarrow$ SZ & both & Lungs masked out & RQ2 & MC$\rightarrow$SZ 0.703 \\
+    E7 & MC $\leftrightarrow$ SZ & both & Histeq / CLAHE / z-score & RQ3 & MC$\rightarrow$SZ CLAHE 0.856 \\
+    E8 & MC + SZ & held-out & Mixed training & RQ3 & Pending \\
+    E9 & MC $\leftrightarrow$ SZ + k & target & Few-shot k=5,10,20,50 & RQ3 & Pending \\
+    E10 & Best of E3--E9 & both & -- & RQ4 & Pending \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Complete experiment results (sensitivity and specificity at the training-fixed threshold). Full AUC and CI values are in \texttt{outputs/results\_table}.}
+  \label{tab:full}
+  \scriptsize
+  \begin{tabularx}{\linewidth}{l l l l l l c c}
+    \toprule
+    \textbf{Experiment} & \textbf{Train} & \textbf{Test} & \textbf{Region} & \textbf{Model} & \textbf{Eval} & \textbf{Sens.} & \textbf{Spec.} \\
+    \midrule
+    \texttt{E0\_classical\_within} & MC & MC & whole & classical & within & 0.845 & 0.650 \\
+    \texttt{E0\_classical\_within\_shenzhen} & SZ & SZ & whole & classical & within & 0.866 & 0.672 \\
+    \texttt{E0\_classical\_within\_shenzhen\_svm} & SZ & SZ & whole & classical & within & 0.777 & 0.779 \\
+    \texttt{E0\_classical\_within\_svm} & MC & MC & whole & classical & within & 0.180 & 0.863 \\
+    \texttt{E1\_montgomery\_within} & MC & MC & whole & resnet18 & within & 0.738 & 0.863 \\
+    \texttt{E1\_montgomery\_within\_densenet} & MC & MC & whole & densenet121 & within & 0.600 & 0.938 \\
+    \texttt{E1\_montgomery\_within\_lungcrop} & MC & MC & lung\_cropped & resnet18 & within & 0.736 & 0.863 \\
+    \texttt{E1\_montgomery\_within\_lungmask} & MC & MC & lung\_masked & resnet18 & within & 0.773 & 0.812 \\
+    \texttt{E2\_shenzhen\_within} & SZ & SZ & whole & resnet18 & within & 0.801 & 0.911 \\
+    \texttt{E2\_shenzhen\_within\_densenet} & SZ & SZ & whole & densenet121 & within & 0.765 & 0.929 \\
+    \texttt{E2\_shenzhen\_within\_lungcrop} & SZ & SZ & lung\_cropped & resnet18 & within & 0.848 & 0.893 \\
+    \texttt{E2\_shenzhen\_within\_lungmask} & SZ & SZ & lung\_masked & resnet18 & within & 0.771 & 0.841 \\
+    \texttt{E3\_classical\_mc\_to\_sz\_cross} & MC & SZ & whole & classical & cross & 1.000 & 0.000 \\
+    \texttt{E3\_mc\_to\_sz\_cross} & MC & SZ & whole & resnet18 & cross & 0.726 & 0.377 \\
+    \texttt{E3\_mc\_to\_sz\_cross\_clahe} & MC & SZ & whole & resnet18 & cross & 0.777 & 0.804 \\
+    \texttt{E3\_mc\_to\_sz\_cross\_histeq} & MC & SZ & whole & resnet18 & cross & 0.810 & 0.577 \\
+    \texttt{E3\_mc\_to\_sz\_cross\_lungcrop} & MC & SZ & lung\_cropped & resnet18 & cross & 0.705 & 0.687 \\
+    \texttt{E3\_mc\_to\_sz\_cross\_lungmask} & MC & SZ & lung\_masked & resnet18 & cross & 0.515 & 0.767 \\
+    \texttt{E3\_mc\_to\_sz\_cross\_zscore} & MC & SZ & whole & resnet18 & cross & 0.601 & 0.859 \\
+    \texttt{E4\_sz\_to\_mc\_cross} & SZ & MC & whole & resnet18 & cross & 0.534 & 0.950 \\
+    \texttt{E4\_sz\_to\_mc\_cross\_clahe} & SZ & MC & whole & resnet18 & cross & 0.172 & 0.988 \\
+    \texttt{E4\_sz\_to\_mc\_cross\_histeq} & SZ & MC & whole & resnet18 & cross & 0.121 & 1.000 \\
+    \texttt{E4\_sz\_to\_mc\_cross\_lungcrop} & SZ & MC & lung\_cropped & resnet18 & cross & 0.586 & 0.812 \\
+    \texttt{E4\_sz\_to\_mc\_cross\_lungmask} & SZ & MC & lung\_masked & resnet18 & cross & 0.845 & 0.375 \\
+    \texttt{E4\_sz\_to\_mc\_cross\_zscore} & SZ & MC & whole & resnet18 & cross & 0.466 & 0.975 \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+\section{Key Code Listings}
+Representative excerpts from the pipeline, chosen to show the decisions that matter rather than the whole repository.
+\noindent \texttt{src/tbx/config.py} -- the experiment schema and its validation. An experiment is a set of fields, not a branch of code; an impossible combination is rejected before anything runs.
+\begin{lstlisting}
+@dataclass
+class ExperimentConfig:
+    name: str = "unnamed"
+    train: str = "montgomery"      # montgomery | shenzhen | both
+    test: str = "montgomery"
+    region: str = "whole"          # whole | lung_cropped | lung_masked
+    model: str = "resnet18"        # classical | resnet18 | densenet121
+    eval_mode: str = "within"      # within (5-fold) | cross (train one, test other)
+    n_target_images: int = 0       # few-shot k for Phase 6 (0 = none)
+    correction: str = "none"       # none | clahe | histeq | zscore (Phase 6)
+
+    def validate(self) -> "ExperimentConfig":
+        if self.region != "whole" and self.model == "classical":
+            # the classical model is lung-field only by construction
+            raise ValueError("region switching does not apply to the classical model")
+        if self.eval_mode == "cross" and self.train == self.test and self.train != "both":
+            raise ValueError("cross evaluation needs different train and test sets")
+        return self
+\end{lstlisting}
+
+\noindent \texttt{src/tbx/runner.py} -- the single cross-dataset runner. Train on the whole of one set, fix the threshold on training scores, test once on the other.
+\begin{lstlisting}
+def _run_cross(df, cfg, features_df=None):
+    """Train on the whole train set (minus a validation slice), test once on the
+    whole test set. The CNN's weights are saved so Grad-CAM can explain its errors."""
+    train_all = df[df["dataset"] == cfg.train].reset_index(drop=True)
+    test_all  = df[df["dataset"] == cfg.test].reset_index(drop=True)
+
+    val   = train_all.sample(frac=0.15, random_state=cfg.data.seed)
+    train = train_all.drop(val.index)
+    model = _train_one(train, val, cfg, device)
+
+    tr_scores, tr_true, _ = _infer(model, DataLoader(tr_ds), device)
+    thr = threshold_from_training(tr_true, tr_scores, cfg.eval.screening_sensitivity)
+    te_scores, te_true, te_ids = _infer(model, DataLoader(te_ds), device)
+    point = summarise(te_true, te_scores, thr, cfg.eval.screening_sensitivity)
+    res["ci"] = _ci_block(te_true, te_scores, cfg)
+    return res
+\end{lstlisting}
+
+\noindent \texttt{src/tbx/data/preprocess.py} -- per-image intensity correction. Each image is corrected from its own pixels only, and the black borders are kept out of the statistics.
+\begin{lstlisting}
+def apply_correction(img01, correction="none"):
+    """histeq | clahe | zscore, each using only this image's pixels."""
+    if correction == "none":
+        return img01
+    img01 = np.clip(img01, 0.0, 1.0).astype(np.float32)
+    fg = img01 > (1.0 / 255.0)            # foreground: exclude the pure-black border
+    if fg.sum() < 1000:
+        fg = np.ones_like(fg)
+
+    if correction == "clahe":
+        u8 = (img01 * 255).round().astype(np.uint8)
+        return cv2.createCLAHE(2.0, (8, 8)).apply(u8).astype(np.float32) / 255.0
+    if correction == "histeq":
+        u8 = (img01 * 255).round().astype(np.uint8)
+        hist = np.bincount(u8[fg], minlength=256).astype(np.float64)
+        cdf = hist.cumsum(); cdf_min = cdf[hist > 0][0]
+        lut = np.clip((cdf - cdf_min) / max(cdf[-1] - cdf_min, 1.0), 0.0, 1.0)
+        out = lut[u8].astype(np.float32); out[~fg] = 0.0
+        return out
+    if correction == "zscore":
+        vals = img01[fg]; m, s = float(vals.mean()), float(vals.std())
+        out = np.clip(((img01 - m) / (s + 1e-6) + 3.0) / 6.0, 0.0, 1.0)
+        out[~fg] = 0.0
+        return out
+\end{lstlisting}
+
+\noindent \texttt{src/tbx/evaluation/bootstrap.py} -- stratified bootstrap confidence interval; TB and normal cases are resampled separately so the class balance is preserved.
+\begin{lstlisting}
+def bootstrap_metric_ci(y_true, y_score, metric_fn, n=2000, ci=0.95, seed=42):
+    rng = np.random.default_rng(seed)
+    point = metric_fn(y_true, y_score)
+    samples = np.empty(n)
+    for i in range(n):
+        bi = _stratified_indices(y_true, rng)      # resample each class separately
+        samples[i] = metric_fn(y_true[bi], y_score[bi])
+    lo, hi = np.quantile(samples[~np.isnan(samples)], [(1 - ci) / 2, 1 - (1 - ci) / 2])
+    return {"point": float(point), "lo": float(lo), "hi": float(hi)}
+\end{lstlisting}
+
+\noindent \texttt{src/tbx/evaluation/delong.py} -- paired DeLong test for two AUCs on the same test set.
+\begin{lstlisting}
+def delong_roc_test(y_true, score_a, score_b):
+    """Two-sided DeLong test comparing AUC(score_a) and AUC(score_b) on the same y_true."""
+    y_true = np.asarray(y_true).astype(int)
+    order = (-y_true).argsort(kind="mergesort")         # positives first
+    preds = np.vstack((score_a, score_b))[:, order]
+    aucs, cov = _fast_delong(preds, int(y_true.sum()))
+    var = cov[0, 0] + cov[1, 1] - 2 * cov[0, 1]
+    z = 0.0 if var <= 0 else float((aucs[0] - aucs[1]) / np.sqrt(var))
+    p = 1.0 if var <= 0 else float(2 * stats.norm.sf(abs(z)))
+    return {"auc_a": float(aucs[0]), "auc_b": float(aucs[1]), "z": z, "p_value": p}
+\end{lstlisting}
+
+\noindent \texttt{scripts/08\_compare\_auc.py} -- Holm-corrected paired-comparison harness, run separately within each family.
+\begin{lstlisting}
+def holm(pvals):
+    p = np.asarray(pvals, dtype=float); m = len(p)
+    adj = np.empty(m); running = 0.0
+    for rank, i in enumerate(np.argsort(p)):
+        running = max(running, min(1.0, (m - rank) * p[i]))
+        adj[i] = running
+    return adj.tolist()
+
+# region controls and CNN-vs-classical are the "phase5" family;
+# each intensity correction vs none is the "phase6" family; Holm runs within each.
+\end{lstlisting}
+
+\noindent \texttt{configs/E3\_mc\_to\_sz\_cross\_clahe.yaml} -- an example experiment configuration. Changing the experiment is editing this file, never the code.
+\begin{lstlisting}
+name: E3_mc_to_sz_cross_clahe
+description: ResNet-18, whole image, clahe, train all of montgomery, test all of shenzhen.
+train: montgomery
+test: shenzhen
+region: whole
+model: resnet18
+eval_mode: cross
+correction: clahe
+\end{lstlisting}
+
+\section{Supervision Meeting Records}
+A record of supervision meetings held with the project supervisor across the reporting period; one row is added after each meeting.
+\begin{table}[htbp]
+  \centering
+  \caption{Supervision log}
+  \begin{tabularx}{\linewidth}{l X X}
+    \toprule
+    Date & What was discussed & Agreed actions \\
+    \midrule
+    27/10/2026 & Project allocation and introduction & Confirm datasets and read the dataset paper \\
+    29/10/2026 & Project allocation & VIP supervision scope agreed \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+\end{appendices}
+
+\end{document}
