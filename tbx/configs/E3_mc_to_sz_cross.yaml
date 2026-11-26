@@ -1,9 +1,0 @@
-# E3 — cross-dataset: train Montgomery, test Shenzhen once, whole image.
-# RQ1 / RQ5, Phase 5 (opens in week 7). Scaffolded so the handoff is ready.
-name: E3_mc_to_sz_cross
-description: Train on all of Montgomery, test once on all of Shenzhen.
-train: montgomery
-test: shenzhen
-region: whole
-model: resnet18
-eval_mode: cross

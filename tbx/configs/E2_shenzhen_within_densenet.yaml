@@ -1,8 +1,0 @@
-# E2 (DenseNet-121) -- architecture check: same as E2 but DenseNet-121 instead of ResNet-18.
-name: E2_shenzhen_within_densenet
-description: ImageNet-pretrained DenseNet-121, whole image, stratified 5-fold on SZ.
-train: shenzhen
-test: shenzhen
-region: whole
-model: densenet121
-eval_mode: within
